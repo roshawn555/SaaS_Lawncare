@@ -17,7 +17,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const content = clerkEnabled ? (
-    <ClerkProvider>{children}</ClerkProvider>
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
+      {children}
+    </ClerkProvider>
   ) : (
     children
   );

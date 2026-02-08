@@ -1,14 +1,19 @@
-import { UserButton } from "@clerk/nextjs";
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 
 import { AppNavLinks } from "@/components/app-nav-links";
+import { requireAuthContext } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 const clerkEnabled = Boolean(
   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
 );
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  await requireAuthContext();
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex max-w-7xl">
@@ -29,7 +34,15 @@ export default function AppLayout({
               <p className="text-sm font-semibold">Lawncare Command Center</p>
             </div>
             {clerkEnabled ? (
-              <UserButton afterSignOutUrl="/" />
+              <div className="flex items-center gap-3">
+                <OrganizationSwitcher
+                  afterCreateOrganizationUrl="/dashboard"
+                  afterLeaveOrganizationUrl="/dashboard"
+                  afterSelectOrganizationUrl="/dashboard"
+                  hidePersonal
+                />
+                <UserButton afterSignOutUrl="/" />
+              </div>
             ) : (
               <span className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-500">
                 Auth disabled

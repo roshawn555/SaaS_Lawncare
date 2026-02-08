@@ -1,6 +1,5 @@
 import { Role } from "@prisma/client";
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAllowedRole, Permission } from "@/lib/rbac";
@@ -20,61 +19,143 @@ function assert(value: unknown, message: string, status = 403): asserts value {
   }
 }
 
-async function resolveOrganizationId(clerkOrgId: string | null | undefined) {
-  if (clerkOrgId) {
-    return clerkOrgId;
-  }
-
-  const requestHeaders = await headers();
-
-  return (
-    requestHeaders.get("x-organization-id") ??
-    requestHeaders.get("x-org-id") ??
-    null
-  );
+function toSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
 }
 
-export async function requireAuthContext() {
-  const { userId: clerkUserId, orgId } = await auth();
-  const organizationId = await resolveOrganizationId(orgId);
+async function uniqueOrganizationSlug(seed: string) {
+  const base = toSlug(seed) || "lawncare-org";
+  let candidate = base;
+  let suffix = 1;
 
-  assert(clerkUserId, "You must be signed in.", 401);
-  assert(
-    organizationId,
-    "Active organization is required. Pass x-organization-id if needed.",
-    400,
-  );
+  while (true) {
+    const exists = await prisma.organization.findUnique({
+      where: { slug: candidate },
+      select: { id: true },
+    });
 
-  const dbUser = await prisma.user.findUnique({
+    if (!exists) {
+      return candidate;
+    }
+
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+}
+
+function mapClerkOrgRoleToRole(clerkOrgRole: string | null | undefined): Role {
+  if (!clerkOrgRole) {
+    return Role.DISPATCHER;
+  }
+
+  if (clerkOrgRole.includes("admin")) {
+    return Role.OWNER;
+  }
+
+  return Role.DISPATCHER;
+}
+
+async function ensureUser(clerkUserId: string) {
+  const clerk = await clerkClient();
+  const clerkUser = await clerk.users.getUser(clerkUserId);
+  const email =
+    clerkUser.primaryEmailAddress?.emailAddress ??
+    clerkUser.emailAddresses.at(0)?.emailAddress;
+
+  assert(email, "No email found for this Clerk user.", 400);
+
+  return prisma.user.upsert({
     where: { clerkUserId },
-    select: { id: true, email: true },
+    update: {
+      email,
+      firstName: clerkUser.firstName ?? undefined,
+      lastName: clerkUser.lastName ?? undefined,
+    },
+    create: {
+      clerkUserId,
+      email,
+      firstName: clerkUser.firstName ?? undefined,
+      lastName: clerkUser.lastName ?? undefined,
+    },
+  });
+}
+
+async function ensureOrganization(clerkOrgId: string) {
+  const existing = await prisma.organization.findUnique({
+    where: { clerkOrgId },
+    select: { id: true, name: true, slug: true },
   });
 
-  assert(
-    dbUser,
-    "No application user record found for this Clerk user.",
-    403,
-  );
+  if (existing) {
+    return existing;
+  }
 
-  const membership = await prisma.orgMember.findUnique({
+  const slug = await uniqueOrganizationSlug(clerkOrgId);
+
+  return prisma.organization.create({
+    data: {
+      clerkOrgId,
+      name: `Organization ${clerkOrgId.slice(-8)}`,
+      slug,
+    },
+    select: { id: true, name: true, slug: true },
+  });
+}
+
+async function ensureMembership(
+  organizationId: string,
+  userId: string,
+  clerkOrgRole: string | null | undefined,
+) {
+  return prisma.orgMember.upsert({
     where: {
       organizationId_userId: {
         organizationId,
-        userId: dbUser.id,
+        userId,
       },
+    },
+    update: {},
+    create: {
+      organizationId,
+      userId,
+      role: mapClerkOrgRoleToRole(clerkOrgRole),
     },
     select: {
       role: true,
     },
   });
+}
 
-  assert(membership, "You are not a member of this organization.", 403);
+export async function requireAuthContext() {
+  const { userId: clerkUserId, orgId: clerkOrgId, orgRole: clerkOrgRole } =
+    await auth();
+
+  assert(clerkUserId, "You must be signed in.", 401);
+  assert(
+    clerkOrgId,
+    "An active Clerk organization is required. Select an organization and try again.",
+    400,
+  );
+
+  const user = await ensureUser(clerkUserId);
+  const organization = await ensureOrganization(clerkOrgId);
+  const membership = await ensureMembership(
+    organization.id,
+    user.id,
+    clerkOrgRole ?? null,
+  );
 
   return {
     clerkUserId,
-    userId: dbUser.id,
-    email: dbUser.email,
-    organizationId,
+    clerkOrgId,
+    userId: user.id,
+    email: user.email,
+    organizationId: organization.id,
     role: membership.role,
   };
 }

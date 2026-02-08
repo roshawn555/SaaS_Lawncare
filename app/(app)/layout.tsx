@@ -1,4 +1,6 @@
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 import { AppNavLinks } from "@/components/app-nav-links";
 import { requireAuthContext } from "@/lib/auth";
@@ -12,7 +14,19 @@ const clerkEnabled = Boolean(
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  await requireAuthContext();
+  if (clerkEnabled) {
+    const { userId, orgId } = await auth();
+
+    if (!userId) {
+      redirect("/sign-in");
+    }
+
+    if (!orgId) {
+      redirect("/onboarding/organization");
+    }
+
+    await requireAuthContext();
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

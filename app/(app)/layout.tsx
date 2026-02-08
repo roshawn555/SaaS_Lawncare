@@ -1,0 +1,39 @@
+import { UserButton } from "@clerk/nextjs";
+
+import { AppNavLinks } from "@/components/app-nav-links";
+
+export default function AppLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="mx-auto flex max-w-7xl">
+        <aside className="hidden min-h-screen w-64 border-r border-slate-200 bg-white p-5 md:block">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+            SaaS Lawncare
+          </p>
+          <h1 className="mb-6 text-xl font-semibold">Operations</h1>
+          <AppNavLinks />
+        </aside>
+
+        <div className="flex min-h-screen flex-1 flex-col">
+          <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
+                Multi-tenant workspace
+              </p>
+              <p className="text-sm font-semibold">Lawncare Command Center</p>
+            </div>
+            <UserButton afterSignOutUrl="/" />
+          </header>
+
+          <div className="border-b border-slate-200 bg-white p-2 md:hidden">
+            <AppNavLinks />
+          </div>
+
+          <main className="flex-1 p-4 md:p-6">{children}</main>
+        </div>
+      </div>
+    </div>
+  );
+}

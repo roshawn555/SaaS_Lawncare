@@ -1,6 +1,8 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 
-const prisma = new PrismaClient();
+import { createPrismaClient } from "../lib/prisma-client";
+
+const prisma = createPrismaClient();
 
 async function main() {
   const organization = await prisma.organization.upsert({

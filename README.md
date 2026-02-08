@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SaaS Lawncare
 
-## Getting Started
+Multi-tenant Lawncare SaaS foundation (Jobber-like) built with:
 
-First, run the development server:
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Prisma + Postgres
+- Clerk auth
+- Role-based access control (RBAC)
+- Zod API validation
+
+## Environment variables
+
+Copy `.env.example` to `.env` and set:
+
+- `DATABASE_URL` Postgres connection string
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` Clerk frontend key
+- `CLERK_SECRET_KEY` Clerk backend key
+
+## Install
+
+```bash
+npm install
+```
+
+## Prisma migrations
+
+Create the initial migration:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+Generate Prisma Client manually when needed:
+
+```bash
+npm run db:generate
+```
+
+## Seed data
+
+The seed script creates:
+
+- organization
+- owner user + owner membership
+- sample customer + property
+- sample quote + quote items
+
+Run:
+
+```bash
+npm run db:seed
+```
+
+## Start development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## App routes
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `/dashboard`
+- `/customers`
+- `/quotes`
+- `/schedule`
+- `/invoices`
+- `/settings`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## RBAC roles
 
-## Learn More
+- `OWNER`
+- `DISPATCHER`
+- `CREW_LEAD`
+- `CREW_TECH`
+- `CUSTOMER`
 
-To learn more about Next.js, take a look at the following resources:
+Permission checks are implemented in:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `lib/rbac.ts`
+- `lib/auth.ts`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API routes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GET/POST /api/customers`
+- `GET/PATCH/DELETE /api/customers/:id`
+- `GET/POST /api/quotes`
+- `GET /api/quotes/:id`
+- `GET /api/visits?start=ISO_DATE&end=ISO_DATE`
+- `GET/POST /api/invoices`
+- `GET /api/invoices/:id`

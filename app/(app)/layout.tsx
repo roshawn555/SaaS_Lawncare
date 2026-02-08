@@ -29,46 +29,69 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex max-w-7xl">
-        <aside className="hidden min-h-screen w-64 border-r border-slate-200 bg-white p-5 md:block">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-            SaaS Lawncare
-          </p>
-          <h1 className="mb-6 text-xl font-semibold">Operations</h1>
-          <AppNavLinks />
+    <div className="app-canvas">
+      <div className="mx-auto flex min-h-screen max-w-[1520px]">
+        <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-[#0c2034] text-slate-100 md:flex md:flex-col">
+          <div className="border-b border-white/10 px-6 py-6">
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-cyan-200/90">
+              Lawncare OS
+            </p>
+            <h1 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Enterprise Suite
+            </h1>
+            <p className="mt-2 text-sm text-slate-300">
+              Operations, dispatch, quoting, and billing in one workspace.
+            </p>
+          </div>
+
+          <div className="flex-1 px-4 py-5">
+            <AppNavLinks variant="dark" />
+          </div>
+
+          <div className="border-t border-white/10 px-6 py-4">
+            <p className="text-xs font-medium text-slate-300">Region: US East</p>
+            <p className="mt-1 text-xs text-slate-400">SLA: 99.95% uptime target</p>
+          </div>
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">
-          <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                Multi-tenant workspace
-              </p>
-              <p className="text-sm font-semibold">Lawncare Command Center</p>
-            </div>
-            {clerkEnabled ? (
-              <div className="flex items-center gap-3">
-                <OrganizationSwitcher
-                  afterCreateOrganizationUrl="/dashboard"
-                  afterLeaveOrganizationUrl="/dashboard"
-                  afterSelectOrganizationUrl="/dashboard"
-                  hidePersonal
-                />
-                <UserButton afterSignOutUrl="/" />
+          <header className="sticky top-0 z-20 border-b border-[color:var(--line-subtle)] bg-white/82 backdrop-blur">
+            <div className="flex min-h-18 flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
+                  Multi-tenant command center
+                </p>
+                <p className="mt-1 text-base font-semibold text-[color:var(--text-primary)]">
+                  Lawncare Command Center
+                </p>
               </div>
-            ) : (
-              <span className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-500">
-                Auth disabled
-              </span>
-            )}
+
+              <div className="flex items-center gap-2">
+                <span className="pill">Operational</span>
+                {clerkEnabled ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-[color:var(--line-subtle)] bg-white px-2 py-1 shadow-[var(--shadow-card)]">
+                    <OrganizationSwitcher
+                      afterCreateOrganizationUrl="/dashboard"
+                      afterLeaveOrganizationUrl="/dashboard"
+                      afterSelectOrganizationUrl="/dashboard"
+                      hidePersonal
+                    />
+                    <UserButton afterSignOutUrl="/" />
+                  </div>
+                ) : (
+                  <span className="pill">Auth disabled</span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[color:var(--line-subtle)] bg-[color:var(--surface-muted)] p-2 md:hidden">
+              <AppNavLinks variant="light" />
+            </div>
           </header>
 
-          <div className="border-b border-slate-200 bg-white p-2 md:hidden">
-            <AppNavLinks />
-          </div>
-
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="workspace flex-1 px-4 pb-8 pt-6 md:px-8">
+            <div className="stagger-in">{children}</div>
+          </main>
         </div>
       </div>
     </div>

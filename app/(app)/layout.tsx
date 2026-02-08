@@ -2,6 +2,10 @@ import { UserButton } from "@clerk/nextjs";
 
 import { AppNavLinks } from "@/components/app-nav-links";
 
+const clerkEnabled = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY,
+);
+
 export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -24,7 +28,13 @@ export default function AppLayout({
               </p>
               <p className="text-sm font-semibold">Lawncare Command Center</p>
             </div>
-            <UserButton afterSignOutUrl="/" />
+            {clerkEnabled ? (
+              <UserButton afterSignOutUrl="/" />
+            ) : (
+              <span className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-500">
+                Auth disabled
+              </span>
+            )}
           </header>
 
           <div className="border-b border-slate-200 bg-white p-2 md:hidden">

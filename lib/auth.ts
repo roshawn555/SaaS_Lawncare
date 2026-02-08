@@ -20,7 +20,7 @@ function assert(value: unknown, message: string, status = 403): asserts value {
   }
 }
 
-async function resolveOrganizationId(clerkOrgId: string | null) {
+async function resolveOrganizationId(clerkOrgId: string | null | undefined) {
   if (clerkOrgId) {
     return clerkOrgId;
   }

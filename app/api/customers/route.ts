@@ -1,29 +1,77 @@
-import { ZodError } from "zod";
-import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import {
+  createdResponse,
+  handleApiError,
+  paginationMeta,
+  successResponse,
+} from "@/lib/api-response";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { customerCreateSchema } from "@/lib/validation";
+import { customerCreateSchema, customerListQuerySchema } from "@/lib/validation";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { organizationId } = await requirePermission("customers:read");
+    const query = customerListQuerySchema.parse(
+      Object.fromEntries(new URL(request.url).searchParams.entries()),
+    );
 
-    const customers = await prisma.customer.findMany({
-      where: { organizationId },
-      include: {
-        properties: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const skip = (query.page - 1) * query.pageSize;
 
-    return NextResponse.json({ data: customers });
+    const where: Prisma.CustomerWhereInput = {
+      organizationId,
+      ...(query.search
+        ? {
+            OR: [
+              {
+                firstName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                lastName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                email: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                phone: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [customers, total] = await prisma.$transaction([
+      prisma.customer.findMany({
+        where,
+        include: {
+          properties: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: query.pageSize,
+      }),
+      prisma.customer.count({ where }),
+    ]);
+
+    return successResponse(
+      customers,
+      paginationMeta(query.page, query.pageSize, total),
+    );
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to fetch customers." }, { status: 500 });
+    return handleApiError(error, "Unable to fetch customers.");
   }
 }
 
@@ -37,21 +85,13 @@ export async function POST(request: Request) {
         organizationId,
         ...payload,
       },
+      include: {
+        properties: true,
+      },
     });
 
-    return NextResponse.json({ data: customer }, { status: 201 });
+    return createdResponse(customer);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: "Invalid customer payload.", details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({ error: "Unable to create customer." }, { status: 500 });
+    return handleApiError(error, "Unable to create customer.");
   }
 }

@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server";
-
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import {
+  errorResponse,
+  handleApiError,
+  successResponse,
+} from "@/lib/api-response";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -25,15 +28,11 @@ export async function GET(_request: Request, context: RouteContext) {
     });
 
     if (!quote) {
-      return NextResponse.json({ error: "Quote not found." }, { status: 404 });
+      return errorResponse(404, "Quote not found.");
     }
 
-    return NextResponse.json({ data: quote });
+    return successResponse(quote);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to fetch quote." }, { status: 500 });
+    return handleApiError(error, "Unable to fetch quote.");
   }
 }

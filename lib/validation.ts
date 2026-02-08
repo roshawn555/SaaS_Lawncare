@@ -1,7 +1,11 @@
+import { InvoiceStatus, QuoteStatus, VisitStatus } from "@prisma/client";
 import { z } from "zod";
 
 const moneySchema = z.coerce.number().finite().nonnegative();
 const quantitySchema = z.coerce.number().finite().positive();
+
+const pageSchema = z.coerce.number().int().min(1).default(1);
+const pageSizeSchema = z.coerce.number().int().min(1).max(100).default(20);
 
 export const customerCreateSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
@@ -16,6 +20,12 @@ export const customerUpdateSchema = customerCreateSchema
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field is required.",
   });
+
+export const customerListQuerySchema = z.object({
+  page: pageSchema,
+  pageSize: pageSizeSchema,
+  search: z.string().trim().max(120).optional(),
+});
 
 export const quoteItemSchema = z.object({
   name: z.string().trim().min(1).max(255),
@@ -33,10 +43,20 @@ export const quoteCreateSchema = z.object({
   items: z.array(quoteItemSchema).min(1),
 });
 
+export const quoteListQuerySchema = z.object({
+  page: pageSchema,
+  pageSize: pageSizeSchema,
+  search: z.string().trim().max(120).optional(),
+  status: z.nativeEnum(QuoteStatus).optional(),
+});
+
 export const visitsQuerySchema = z
   .object({
+    page: pageSchema,
+    pageSize: pageSizeSchema,
     start: z.coerce.date(),
     end: z.coerce.date(),
+    status: z.nativeEnum(VisitStatus).optional(),
   })
   .refine((value) => value.start <= value.end, {
     message: "start must be before end",
@@ -59,4 +79,11 @@ export const invoiceCreateSchema = z.object({
   notes: z.string().trim().max(5000).optional(),
   tax: moneySchema.optional().default(0),
   items: z.array(invoiceItemSchema).min(1),
+});
+
+export const invoiceListQuerySchema = z.object({
+  page: pageSchema,
+  pageSize: pageSizeSchema,
+  search: z.string().trim().max(120).optional(),
+  status: z.nativeEnum(InvoiceStatus).optional(),
 });

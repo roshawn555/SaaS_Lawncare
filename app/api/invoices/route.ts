@@ -1,33 +1,81 @@
-import { ZodError } from "zod";
-import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import {
+  createdResponse,
+  errorResponse,
+  handleApiError,
+  paginationMeta,
+  successResponse,
+} from "@/lib/api-response";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { invoiceCreateSchema } from "@/lib/validation";
+import { invoiceCreateSchema, invoiceListQuerySchema } from "@/lib/validation";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { organizationId } = await requirePermission("invoices:read");
+    const query = invoiceListQuerySchema.parse(
+      Object.fromEntries(new URL(request.url).searchParams.entries()),
+    );
 
-    const invoices = await prisma.invoice.findMany({
-      where: { organizationId },
-      include: {
-        customer: true,
-        property: true,
-        job: true,
-        items: true,
-        payments: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const skip = (query.page - 1) * query.pageSize;
 
-    return NextResponse.json({ data: invoices });
+    const where: Prisma.InvoiceWhereInput = {
+      organizationId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              {
+                customer: {
+                  firstName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+              {
+                customer: {
+                  lastName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+              {
+                notes: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [invoices, total] = await prisma.$transaction([
+      prisma.invoice.findMany({
+        where,
+        include: {
+          customer: true,
+          property: true,
+          job: true,
+          items: true,
+          payments: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: query.pageSize,
+      }),
+      prisma.invoice.count({ where }),
+    ]);
+
+    return successResponse(
+      invoices,
+      paginationMeta(query.page, query.pageSize, total),
+    );
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to fetch invoices." }, { status: 500 });
+    return handleApiError(error, "Unable to fetch invoices.");
   }
 }
 
@@ -45,10 +93,7 @@ export async function POST(request: Request) {
     });
 
     if (!customer) {
-      return NextResponse.json(
-        { error: "Customer does not belong to this organization." },
-        { status: 404 },
-      );
+      return errorResponse(404, "Customer does not belong to this organization.");
     }
 
     if (payload.propertyId) {
@@ -62,9 +107,9 @@ export async function POST(request: Request) {
       });
 
       if (!property) {
-        return NextResponse.json(
-          { error: "Property does not belong to this customer or organization." },
-          { status: 404 },
+        return errorResponse(
+          404,
+          "Property does not belong to this customer or organization.",
         );
       }
     }
@@ -80,10 +125,7 @@ export async function POST(request: Request) {
       });
 
       if (!job) {
-        return NextResponse.json(
-          { error: "Job does not belong to this customer or organization." },
-          { status: 404 },
-        );
+        return errorResponse(404, "Job does not belong to this customer or organization.");
       }
     }
 
@@ -139,19 +181,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ data: invoice }, { status: 201 });
+    return createdResponse(invoice);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: "Invalid invoice payload.", details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({ error: "Unable to create invoice." }, { status: 500 });
+    return handleApiError(error, "Unable to create invoice.");
   }
 }

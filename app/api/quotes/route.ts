@@ -1,31 +1,76 @@
-import { ZodError } from "zod";
-import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import {
+  createdResponse,
+  errorResponse,
+  handleApiError,
+  paginationMeta,
+  successResponse,
+} from "@/lib/api-response";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { quoteCreateSchema } from "@/lib/validation";
+import { quoteCreateSchema, quoteListQuerySchema } from "@/lib/validation";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { organizationId } = await requirePermission("quotes:read");
+    const query = quoteListQuerySchema.parse(
+      Object.fromEntries(new URL(request.url).searchParams.entries()),
+    );
 
-    const quotes = await prisma.quote.findMany({
-      where: { organizationId },
-      include: {
-        customer: true,
-        property: true,
-        items: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const skip = (query.page - 1) * query.pageSize;
 
-    return NextResponse.json({ data: quotes });
+    const where: Prisma.QuoteWhereInput = {
+      organizationId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              {
+                title: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+              {
+                customer: {
+                  firstName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+              {
+                customer: {
+                  lastName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [quotes, total] = await prisma.$transaction([
+      prisma.quote.findMany({
+        where,
+        include: {
+          customer: true,
+          property: true,
+          items: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: query.pageSize,
+      }),
+      prisma.quote.count({ where }),
+    ]);
+
+    return successResponse(quotes, paginationMeta(query.page, query.pageSize, total));
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to fetch quotes." }, { status: 500 });
+    return handleApiError(error, "Unable to fetch quotes.");
   }
 }
 
@@ -43,10 +88,7 @@ export async function POST(request: Request) {
     });
 
     if (!customer) {
-      return NextResponse.json(
-        { error: "Customer does not belong to this organization." },
-        { status: 404 },
-      );
+      return errorResponse(404, "Customer does not belong to this organization.");
     }
 
     if (payload.propertyId) {
@@ -60,9 +102,9 @@ export async function POST(request: Request) {
       });
 
       if (!property) {
-        return NextResponse.json(
-          { error: "Property does not belong to this customer or organization." },
-          { status: 404 },
+        return errorResponse(
+          404,
+          "Property does not belong to this customer or organization.",
         );
       }
     }
@@ -110,19 +152,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ data: quote }, { status: 201 });
+    return createdResponse(quote);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: "Invalid quote payload.", details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({ error: "Unable to create quote." }, { status: 500 });
+    return handleApiError(error, "Unable to create quote.");
   }
 }

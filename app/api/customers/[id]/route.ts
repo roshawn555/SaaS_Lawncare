@@ -1,7 +1,9 @@
-import { ZodError } from "zod";
-import { NextResponse } from "next/server";
-
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import {
+  errorResponse,
+  handleApiError,
+  successResponse,
+} from "@/lib/api-response";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { customerUpdateSchema } from "@/lib/validation";
 
@@ -25,16 +27,12 @@ export async function GET(_request: Request, context: RouteContext) {
     });
 
     if (!customer) {
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+      return errorResponse(404, "Customer not found.");
     }
 
-    return NextResponse.json({ data: customer });
+    return successResponse(customer);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to fetch customer." }, { status: 500 });
+    return handleApiError(error, "Unable to fetch customer.");
   }
 }
 
@@ -44,34 +42,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const payload = customerUpdateSchema.parse(await request.json());
 
-    const customer = await prisma.customer.updateMany({
+    const result = await prisma.customer.updateMany({
       where: { id, organizationId },
       data: payload,
     });
 
-    if (customer.count === 0) {
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+    if (result.count === 0) {
+      return errorResponse(404, "Customer not found.");
     }
 
-    const updatedCustomer = await prisma.customer.findFirst({
+    const customer = await prisma.customer.findFirst({
       where: { id, organizationId },
       include: { properties: true },
     });
 
-    return NextResponse.json({ data: updatedCustomer });
+    return successResponse(customer);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: "Invalid customer update payload.", details: error.issues },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({ error: "Unable to update customer." }, { status: 500 });
+    return handleApiError(error, "Unable to update customer.");
   }
 }
 
@@ -88,15 +75,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
     });
 
     if (result.count === 0) {
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+      return errorResponse(404, "Customer not found.");
     }
 
-    return NextResponse.json({ ok: true });
+    return successResponse({ id });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
-    return NextResponse.json({ error: "Unable to delete customer." }, { status: 500 });
+    return handleApiError(error, "Unable to delete customer.");
   }
 }

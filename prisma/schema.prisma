@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  DISPATCHER
+  CREW_LEAD
+  CREW_TECH
+  CUSTOMER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum JobStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum VisitStatus {
+  SCHEDULED
+  EN_ROUTE
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  CHECK
+  BANK_TRANSFER
+  OTHER
+}
+
+model Organization {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  members      OrgMember[]
+  customers    Customer[]
+  properties   Property[]
+  quotes       Quote[]
+  quoteItems   QuoteItem[]
+  jobs         Job[]
+  visits       Visit[]
+  invoices     Invoice[]
+  invoiceItems InvoiceItem[]
+  payments     Payment[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id            String      @id @default(cuid())
+  clerkUserId   String      @unique
+  email         String      @unique
+  firstName     String?
+  lastName      String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  memberships   OrgMember[]
+  auditLogItems AuditLog[]
+}
+
+model OrgMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties     Property[]
+  quotes         Quote[]
+  jobs           Job[]
+  invoices       Invoice[]
+
+  @@index([organizationId])
+  @@index([organizationId, lastName, firstName])
+}
+
+model Property {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  name           String?
+  addressLine1   String
+  addressLine2   String?
+  city           String
+  state          String
+  postalCode     String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotes         Quote[]
+  jobs           Job[]
+  visits         Visit[]
+  invoices       Invoice[]
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+}
+
+model Quote {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  propertyId     String?
+  title          String
+  status         QuoteStatus  @default(DRAFT)
+  notes          String?
+  subtotal       Decimal      @default(0) @db.Decimal(10, 2)
+  tax            Decimal      @default(0) @db.Decimal(10, 2)
+  total          Decimal      @default(0) @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  property       Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  items          QuoteItem[]
+  jobs           Job[]
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+}
+
+model QuoteItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  quoteId        String
+  name           String
+  description    String?
+  quantity       Decimal      @default(1) @db.Decimal(10, 2)
+  unitPrice      Decimal      @db.Decimal(10, 2)
+  lineTotal      Decimal      @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quote          Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, quoteId])
+}
+
+model Job {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  propertyId     String
+  quoteId        String?
+  title          String
+  description    String?
+  status         JobStatus    @default(SCHEDULED)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  property       Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  quote          Quote?       @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  visits         Visit[]
+  invoices       Invoice[]
+
+  @@index([organizationId])
+  @@index([organizationId, scheduledStart])
+}
+
+model Visit {
+  id             String       @id @default(cuid())
+  organizationId String
+  jobId          String
+  propertyId     String
+  status         VisitStatus  @default(SCHEDULED)
+  scheduledFor   DateTime
+  startedAt      DateTime?
+  completedAt    DateTime?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  property       Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, scheduledFor])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  customerId     String
+  propertyId     String?
+  jobId          String?
+  status         InvoiceStatus @default(DRAFT)
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime?
+  notes          String?
+  subtotal       Decimal       @default(0) @db.Decimal(10, 2)
+  tax            Decimal       @default(0) @db.Decimal(10, 2)
+  total          Decimal       @default(0) @db.Decimal(10, 2)
+  amountPaid     Decimal       @default(0) @db.Decimal(10, 2)
+  balanceDue     Decimal       @default(0) @db.Decimal(10, 2)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  property       Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  job            Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@index([organizationId])
+  @@index([organizationId, issueDate])
+}
+
+model InvoiceItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  invoiceId      String
+  name           String
+  description    String?
+  quantity       Decimal      @default(1) @db.Decimal(10, 2)
+  unitPrice      Decimal      @db.Decimal(10, 2)
+  lineTotal      Decimal      @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, invoiceId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  organizationId String
+  invoiceId      String
+  amount         Decimal       @db.Decimal(10, 2)
+  method         PaymentMethod @default(CARD)
+  reference      String?
+  paidAt         DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, paidAt])
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
+}
